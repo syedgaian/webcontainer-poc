@@ -4,6 +4,8 @@ import { useRef, useState } from "react";
 import { WebContainer } from "@webcontainer/api";
 import { startDevServer } from "./utils";
 import { Button } from "../ui/button";
+import TerminalComponent from "../terminal/TerminalComponent";
+import { TerminalContextProvider } from "react-terminal";
 
 function WebContainerComponent() {
 	const [output, setOutput] = useState<string>("");
@@ -85,19 +87,21 @@ function WebContainerComponent() {
 	};
 
 	return (
-		<div>
-			<Button onClick={startWebContainer} variant="default">
-				Start WebContainer
-			</Button>
-			<Button onClick={destroyContainer} variant="destructive">
-				Destroy WebContainer
-			</Button>
-			<pre>{output}</pre>
-			<iframe
-				ref={iframeRef}
-				style={{ width: "100%", height: "500px" }}
-			></iframe>
-		</div>
+		<TerminalContextProvider>
+			<div>
+				<Button onClick={startWebContainer} variant="default">
+					Start WebContainer
+				</Button>
+				<Button onClick={destroyContainer} variant="destructive">
+					Destroy WebContainer
+				</Button>
+				<TerminalComponent output={output} theme="matrix" />
+				<iframe
+					ref={iframeRef}
+					style={{ width: "100%", height: "500px" }}
+				></iframe>
+			</div>
+		</TerminalContextProvider>
 	);
 }
 
