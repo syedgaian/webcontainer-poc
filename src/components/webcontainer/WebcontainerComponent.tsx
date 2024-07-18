@@ -13,7 +13,7 @@ function WebContainerComponent() {
 	let webContainer: WebContainer;
 
 	const writeOutput = (data: string) => {
-		setOutput((prev) => prev + data);
+		setOutput((prev) => `${prev} \n ${data}`);
 	};
 
 	const createWritableStream = () => {

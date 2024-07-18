@@ -2,6 +2,8 @@
 import React, { useEffect } from "react";
 import { ReactTerminal, TerminalContext } from "react-terminal";
 import styles from "./TerminalComponent.module.scss";
+import AnsiToHtml from "ansi-to-html";
+import HtmlToReactComponent from "./HtmlToReactComponent";
 
 interface TerminalComponentProps {
 	output: string;
@@ -23,6 +25,7 @@ const TerminalComponent: React.FC<TerminalComponentProps> = ({
 	theme,
 }) => {
 	const { setBufferedContent } = React.useContext(TerminalContext);
+	const converter = new AnsiToHtml();
 	const themes: { [key: string]: Theme } = {
 		matrix: {
 			themeBGColor: "#0D0208",
@@ -74,7 +77,9 @@ const TerminalComponent: React.FC<TerminalComponentProps> = ({
 
 	useEffect(() => {
 		// Programmatically add logs
-		setBufferedContent(output);
+		setBufferedContent(
+			<HtmlToReactComponent htmlString={converter.toHtml(output)} />
+		);
 	}, [output]);
 
 	return (
