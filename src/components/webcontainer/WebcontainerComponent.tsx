@@ -1,10 +1,12 @@
-// src/components/WebContainerComponent.tsx
 "use client";
-import { useState } from "react";
+// src/components/WebContainerComponent.tsx
+import { useRef, useState } from "react";
 import { WebContainer } from "@webcontainer/api";
+import { startDevServer } from "./utils";
 
 function WebContainerComponent() {
 	const [output, setOutput] = useState<string>("");
+	const iframeRef = useRef<HTMLIFrameElement>(null);
 
 	const startWebContainer = async () => {
 		const webContainer = await WebContainer.boot();
@@ -15,24 +17,15 @@ function WebContainerComponent() {
 					contents: JSON.stringify({
 						name: "webcontainer-app",
 						version: "1.0.0",
+						dependencies: {},
+						devDependencies: {
+							"create-vite": "latest",
+						},
 						scripts: {
-							start: "node index.js",
+							"create:react":
+								"npm create vite@latest my-react-app -- --template react && ls",
 						},
 					}),
-				},
-			},
-			"index.js": {
-				file: {
-					contents: `
-            const http = require('http');
-            const server = http.createServer((req, res) => {
-              res.writeHead(200, { 'Content-Type': 'text/plain' });
-              res.end('Hello, world!');
-            });
-            server.listen(3000, () => {
-              console.log('Server running at http://localhost:3000/');
-            });
-          `,
 				},
 			},
 		};
@@ -43,26 +36,70 @@ function WebContainerComponent() {
 		installProcess.output.pipeTo(
 			new WritableStream({
 				write(data) {
-					console.log(data);
+					setOutput((prev) => prev + data);
 				},
 			})
 		);
 		await installProcess.exit;
 
-		const runProcess = await webContainer.spawn("npm", ["start"]);
-		runProcess.output.pipeTo(
+		const createAppProcess = await webContainer.spawn("npm", [
+			"run",
+			"create:react",
+		]);
+		createAppProcess.output.pipeTo(
 			new WritableStream({
 				write(data) {
 					setOutput((prev) => prev + data);
 				},
 			})
 		);
+		const viteCreate = await createAppProcess.exit;
+
+		if (viteCreate === 0) {
+			const cdIntoFolder = await webContainer.spawn("cd", [
+				"my-react-app",
+			]);
+			cdIntoFolder.output.pipeTo(
+				new WritableStream({
+					write(data) {
+						setOutput((prev) => prev + data);
+					},
+				})
+			);
+			if ((await cdIntoFolder.exit) === 0) {
+				const installProcess = await webContainer.spawn("npm", [
+					"install",
+				]);
+				installProcess.output.pipeTo(
+					new WritableStream({
+						write(data) {
+							setOutput((prev) => prev + data);
+						},
+					})
+				);
+				await installProcess.exit;
+				const startProcess = await webContainer.spawn("npm", ["run"]);
+				startProcess.output.pipeTo(
+					new WritableStream({
+						write(data) {
+							setOutput((prev) => prev + data);
+						},
+					})
+				);
+
+				await startDevServer(webContainer, iframeRef);
+			}
+		}
 	};
 
 	return (
 		<div>
 			<button onClick={startWebContainer}>Start WebContainer</button>
 			<pre>{output}</pre>
+			<iframe
+				ref={iframeRef}
+				style={{ width: "100%", height: "500px" }}
+			></iframe>
 		</div>
 	);
 }
