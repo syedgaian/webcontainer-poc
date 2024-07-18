@@ -3,10 +3,12 @@
 import { useRef, useState } from "react";
 import { WebContainer } from "@webcontainer/api";
 import { startDevServer } from "./utils";
+import { Button } from "../ui/button";
 
 function WebContainerComponent() {
 	const [output, setOutput] = useState<string>("");
 	const iframeRef = useRef<HTMLIFrameElement>(null);
+	let webContainer: WebContainer;
 
 	const writeOutput = (data: string) => {
 		setOutput((prev) => prev + data);
@@ -26,7 +28,7 @@ function WebContainerComponent() {
 
 	const startWebContainer = async () => {
 		try {
-			const webContainer = await WebContainer.boot();
+			webContainer = await WebContainer.boot();
 
 			const files = {
 				"package.json": {
@@ -78,9 +80,18 @@ function WebContainerComponent() {
 		}
 	};
 
+	const destroyContainer = () => {
+		webContainer.teardown();
+	};
+
 	return (
 		<div>
-			<button onClick={startWebContainer}>Start WebContainer</button>
+			<Button onClick={startWebContainer} variant="default">
+				Start WebContainer
+			</Button>
+			<Button onClick={destroyContainer} variant="destructive">
+				Destroy WebContainer
+			</Button>
 			<pre>{output}</pre>
 			<iframe
 				ref={iframeRef}
