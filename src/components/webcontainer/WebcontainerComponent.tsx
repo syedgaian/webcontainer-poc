@@ -8,87 +8,73 @@ function WebContainerComponent() {
 	const [output, setOutput] = useState<string>("");
 	const iframeRef = useRef<HTMLIFrameElement>(null);
 
-	const startWebContainer = async () => {
-		const webContainer = await WebContainer.boot();
+	const writeOutput = (data: string) => {
+		setOutput((prev) => prev + data);
+	};
 
-		const files = {
-			"package.json": {
-				file: {
-					contents: JSON.stringify({
-						name: "webcontainer-app",
-						version: "1.0.0",
-						dependencies: {},
-						devDependencies: {
-							"create-vite": "latest",
-						},
-						scripts: {
-							"create:react":
-								"npm create vite@latest my-react-app -- --template react && ls",
-						},
-					}),
-				},
+	const createWritableStream = () => {
+		return new WritableStream({
+			write(data) {
+				writeOutput(data);
 			},
-		};
+		});
+	};
 
-		await webContainer.mount(files);
+	const handleError = (error: Error) => {
+		writeOutput(`Error: ${error.message}`);
+	};
 
-		const installProcess = await webContainer.spawn("npm", ["install"]);
-		installProcess.output.pipeTo(
-			new WritableStream({
-				write(data) {
-					setOutput((prev) => prev + data);
-				},
-			})
-		);
-		await installProcess.exit;
+	const startWebContainer = async () => {
+		try {
+			const webContainer = await WebContainer.boot();
 
-		const createAppProcess = await webContainer.spawn("npm", [
-			"run",
-			"create:react",
-		]);
-		createAppProcess.output.pipeTo(
-			new WritableStream({
-				write(data) {
-					setOutput((prev) => prev + data);
-				},
-			})
-		);
-		const viteCreate = await createAppProcess.exit;
-
-		if (viteCreate === 0) {
-			const cdIntoFolder = await webContainer.spawn("cd", [
-				"my-react-app",
-			]);
-			cdIntoFolder.output.pipeTo(
-				new WritableStream({
-					write(data) {
-						setOutput((prev) => prev + data);
+			const files = {
+				"package.json": {
+					file: {
+						contents: JSON.stringify({
+							name: "webcontainer-app",
+							version: "1.0.0",
+							dependencies: {},
+							devDependencies: {
+								"create-vite": "latest",
+							},
+							scripts: {
+								"create:react":
+									"npm create vite@latest my-react-app -- --template react && ls",
+							},
+						}),
 					},
-				})
-			);
-			if ((await cdIntoFolder.exit) === 0) {
-				const installProcess = await webContainer.spawn("npm", [
-					"install",
-				]);
-				installProcess.output.pipeTo(
-					new WritableStream({
-						write(data) {
-							setOutput((prev) => prev + data);
-						},
-					})
-				);
-				await installProcess.exit;
-				const startProcess = await webContainer.spawn("npm", ["run"]);
-				startProcess.output.pipeTo(
-					new WritableStream({
-						write(data) {
-							setOutput((prev) => prev + data);
-						},
-					})
-				);
+				},
+			};
+
+			await webContainer.mount(files);
+
+			let process = await webContainer.spawn("npm", ["install"]);
+			process.output.pipeTo(createWritableStream());
+			await process.exit;
+
+			process = await webContainer.spawn("npm", ["run", "create:react"]);
+			process.output.pipeTo(createWritableStream());
+			const viteCreate = await process.exit;
+
+			if (viteCreate === 0) {
+				// Install dependencies inside my-react-app
+				process = await webContainer.spawn("npm", ["install"], {
+					cwd: "/my-react-app",
+				});
+				process.output.pipeTo(createWritableStream());
+				await process.exit;
+
+				// Start development server inside my-react-app
+				process = await webContainer.spawn("npm", ["run", "dev"], {
+					cwd: "/my-react-app",
+				});
+				process.output.pipeTo(createWritableStream());
 
 				await startDevServer(webContainer, iframeRef);
 			}
+		} catch (error: any) {
+			handleError(error);
 		}
 	};
 
